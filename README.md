@@ -51,11 +51,11 @@ The model can be trained on the PDBBind dataset, using `python -m scripts.pdbbin
  - To use the `refined` or `other` subset of PDBBind rather than the `complete`, use `--pdbbind_set refined` or `--pdbbind_set other`. For that, you will need the corresponding data in the folders `data/v2020-refined-PL` and `data/v2020-other-PL`, as present by default in the PDBBind zip files.
 
 
-## 10. License
+## 5. License
 The software was developed at F. Hoffmann - La Roche Ltd. and is licensed by the license CreativeCommons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0), i.e. described in `LICENSE`.
 
 
-## 11. Citation
+## 6. Citation
 
 ```
 @misc{crouzet_pliprediction_2023,
