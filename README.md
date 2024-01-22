@@ -30,6 +30,7 @@ The `data/` directory needs:
  - The PDBBind v2020 data, which can be retrieved from [the PDBBind website](http://pdbbind.org.cn/download.php). You need both the "general set minus refined set (2)" and the "refined set (3)", to unzip them and merge the two in the folder `data/v2020-complete-PL`
  - The PDBBind CASF 2016 Benchmark set, which can be retrieved from [the PDBBind website](http://pdbbind.org.cn/casf.php). You need the "CASF-2016" data, unzipped in the folder `data/CASF-2016`
  - The `Mapping_HumanProteins_20221006.tsv`, provided, giving a mapping between GeneID, UniProtID and EnsemblID for human proteins
+ - The `CASF_Mapping_HumanProteins_20230627.tsv`, provided, giving a mapping between PDB Code and UniProtID for human proteins in the CASF Core Set. Please note that this mapping has been manually refined by double cheking the PDB entries.
  - A PPI database giving pairs of GeneIDs interacting. By default, we used the database from the publication "Large-scale analysis of disease pathways in the human interactome" by M. Agrawal, M. Zitnik & J. Leskovec, [available here](https://snap.stanford.edu/biodata/datasets/10000/10000-PP-Pathways.html)
  - Gene expression data, retrieved by default [from the Human Protein Atlas](https://www.proteinatlas.org/about/download), where we took the "RNA consensus tissue gene data (4)"
 
@@ -46,7 +47,7 @@ With the raw data correctly imported, you can proceed to the graph building with
 
 
 ## 4. Model training
-The model can be trained on the PDBBind dataset, using `python -m scripts.pdbbind_pipeline.py [args]`.
+The model can be trained on the PDBBind dataset, using `python -m scripts.pdbbind_pipeline [args]`.
  - By default, evaluation is done on the 2016 CASF Core Set. For an evaluation on the 2019 Temporal Hold-out Set, use `--split_type temporal`
  - To use the `refined` or `other` subset of PDBBind rather than the `complete`, use `--pdbbind_set refined` or `--pdbbind_set other`. For that, you will need the corresponding data in the folders `data/v2020-refined-PL` and `data/v2020-other-PL`, as present by default in the PDBBind zip files.
 

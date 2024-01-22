@@ -381,7 +381,7 @@ def construct_pdbbind_core_data(params, output_f, pdbbind_set='complete'):
 	# return data, dataset
 	return data, dataset
 
-def casf_core_split(dataset, params, casf_subfolder='CASF-2016'):
+def casf_core_split(dataset, params, casf_subfolder='CASF-2016', casf_mapping_file='CASF_Mapping_HumanProteins_20230627.tsv'):
 	casf_folder = os.path.join(params.RUNINFO.data_dir, casf_subfolder)
 	core_df = pd.read_csv(os.path.join(casf_folder, 'power_screening', 'CoreSet.dat'), sep='\s+')
 	ligand_df = pd.read_csv(os.path.join(casf_folder, 'power_screening', 'LigandInfo.dat'), skiprows=8, sep='\s+')
@@ -389,7 +389,7 @@ def casf_core_split(dataset, params, casf_subfolder='CASF-2016'):
 
 	#pdb_mapping_df = PDBCode_to_UniProtID(target_df['#T'].values)
 	# UniProt ID Mapping API is dysfunctional - manually requested on the website
-	pdb_mapping_df = pd.read_csv(os.path.join(casf_folder, '20230627_casf_human-proteins_idmapping.tsv'), sep='\t')
+	pdb_mapping_df = pd.read_csv(os.path.join('data', casf_mapping_file), sep='\t')
 	pdb_mapping_df = pdb_mapping_df.drop(['Organism', 'Entry Name'], axis=1).rename(columns={'Entry': 'UniProtID', 'From': 'PDBCode'})
 
 	pdb2uniprot = {}
