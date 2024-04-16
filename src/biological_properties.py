@@ -1,4 +1,13 @@
-import sys, os, itertools, logging
+import itertools
+import logging
+import os
+import sys
+
+import torch
+from Bio import SeqIO
+from tqdm import tqdm
+
+from src.external import get_sublocation, get_sublocation_features_length
 
 # its win32, maybe there is win64 too?
 is_windows = sys.platform.startswith("win")
@@ -6,11 +15,6 @@ if is_windows:
     print("N.B.: Windows detected, ESM2 cannot be used - please do not use ESM encodings", file=sys.stderr)
 else:
     import esm
-import torch
-from tqdm import tqdm
-from Bio import SeqIO
-
-from src.external import get_sublocation, get_sublocation_features_length
 
 protein_alphabet = ["A", "C", "D", "E", "F", "G", "H", "I", "K", "L", "M", "N", "P", "Q", "R", "S", "T", "V", "W", "Y"]
 
@@ -31,9 +35,8 @@ def count_khmer(protein_name, data_folder, k, to_list=False):
             else:
                 if valid:
                     logging.error(
-                        "Ignoring FASTA sequence: Multiple sequences found for protein name {} in fasta file {}".format(
-                            protein_name, fasta
-                        )
+                        f"Ignoring FASTA sequence: Multiple sequences found for protein name {protein_name} "
+                        + f"in fasta file {fasta}"
                     )
                 valid = True
                 seq = str(seq_record.seq)
@@ -48,7 +51,7 @@ def count_khmer(protein_name, data_folder, k, to_list=False):
                         khmer_dict[khmer] += 1
         if not valid:
             raise ValueError("count-khmer: error while reading fasta file {}".format(fasta))
-    except:
+    except Exception:
         raise ValueError("count-khmer: error while reading fasta file {}".format(fasta))
     if to_list:
         return list(khmer_dict.values())

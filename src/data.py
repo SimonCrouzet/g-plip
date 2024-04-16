@@ -1,26 +1,40 @@
-import os, functools, math, csv, random, sys, copy
-from statistics import fmean, median
-import json as json
+import copy
+import itertools as it
 import logging
+import math
+import os
+import random
+import sys
+from statistics import median
+
 import numpy as np
 import pandas as pd
-from tqdm.auto import tqdm
-import itertools as it
-
-import torch.utils.data
-
 import torch
+import torch.utils.data
 import torch_geometric.transforms as T
+from rdkit import Chem
 from torch.distributions.uniform import Uniform
 from torch_geometric.data import Dataset, HeteroData
-from src.biological_properties import generate_esm_encodings, get_nb_protein_features, get_protein_features
-from src.chemical_properties import *
+from tqdm.auto import tqdm
+
+from src.biological_properties import (
+    generate_esm_encodings,
+    get_nb_protein_features,
+    get_protein_features,
+)
+from src.chemical_properties import (
+    check_compounds_smiles,
+    check_compounds_smiles_from_PACE,
+    compounds_similarity,
+    get_compound_features,
+    get_nb_compound_features,
+    get_scaffolds,
+)
 from src.external import download_uniprot_fasta, retrieve_protein_classes
 from src.utils import dataframe_raw_vectorization_with_numpy
-from rdkit import Chem
 
 # basic logging config
-logging.basicConfig(filename="data.log", level=logging.DEBUG)
+logging.basicConfig(filename="outputs/data.log", level=logging.DEBUG)
 
 """
 Randomly assign edges of an heterogeneous graph to train/val/test set
@@ -46,7 +60,8 @@ def random_edge_split_heterogeneous(data, edge_type, val_perc, test_perc):
 
 
 """
-Randomly assign edges of an heterogeneous graph to train/val/test set, via a stratified split over the first type of node (T nodes for T->S edges) attributing the same proportion of train/val/test edges for each node
+Randomly assign edges of an heterogeneous graph to train/val/test set, via a stratified split over the first type
+of node (T nodes for T->S edges) attributing the same proportion of train/val/test edges for each node
 """
 
 
@@ -85,7 +100,8 @@ def stratified_random_edge_split_heterogeneous(data, edge_type, val_perc, test_p
 
 
 """
-Randomly assign edges of an heterogeneous graph to train/val/test set, via a stratified split over the first type of node (T nodes for T->S edges) attributing the same proportion of train/val/test edges for each node
+Randomly assign edges of an heterogeneous graph to train/val/test set, via a stratified split over the first type of
+node (T nodes for T->S edges) attributing the same proportion of train/val/test edges for each node
 """
 
 
@@ -331,7 +347,7 @@ class PDADataset(Dataset):
         if self.settings.PROTEIN_FEATURES.subcellular_location:
             base = base + "_SubcellularLoc"
         if self.settings.PROTEIN_FEATURES.esm_encoding:
-            base = base + "_ESM2".format(self.settings.PROTEIN_FEATURES.esm_encoding)
+            base = base + "_{}".format(self.settings.PROTEIN_FEATURES.esm_encoding)
 
         if self.settings.PROTEIN_FEATURES.protein_protein_interactions:
             base = base + "_{}".format(self.settings.INPUT_FILES.ppi_database.replace("_ppi.csv", ""))
@@ -437,7 +453,8 @@ class PDADataset(Dataset):
         return [t for t in targets if t not in excluded_targets], excluded_targets
 
     def check_proteins_validity(self, targets, mapping_file, gene_expr_df):
-        # Exclude targets when unable to compute protein features. Such exception are mainly due to obsolete Uniprot ID or miscalleneous fasta file (ex: B1ALC3)
+        # Exclude targets when unable to compute protein features. Such exception are mainly due to obsolete
+        # Uniprot ID or miscalleneous fasta file (ex: B1ALC3)
         # Computationaly redundant, but we need to exclude those targets before building the graph
         excluded_targets = []
         target_esm_encodings = generate_esm_encodings(targets)
@@ -456,13 +473,12 @@ class PDADataset(Dataset):
                     gene_expr=self.settings.PROTEIN_FEATURES.gene_expression,
                     esm_encoding=self.settings.PROTEIN_FEATURES.esm_encoding,
                 )
-            except:
-                logging.warning("Cannot computer for target ".format(target))
+            except Exception:
+                logging.warning("Cannot compute for target {}".format(target))
                 excluded_targets.append(target)
         logging.warning(
-            "Dataset: The following targets were excluded from the pipeline as the program was unable to compute protein features:\n{}\n".format(
-                excluded_targets
-            )
+            "Dataset: The following targets were excluded from the pipeline as the program was unable to"
+            + "compute protein features:\n{}\n".format(excluded_targets)
         )
         return [t for t in targets if t not in excluded_targets], excluded_targets
 
@@ -549,7 +565,8 @@ class PDADataset(Dataset):
         ):
             target_uniprot_ids = mapping_file[mapping_file.GeneID == int(target_gene_id)].Accession.to_list()
 
-            # We are using a PPI network referencing gene IDs -> Translate them to UniProt IDs (there can be several proteins!)
+            # We are using a PPI network referencing gene IDs
+            # -> Translate them to UniProt IDs (there can be several proteins!)
             for uniprot_id in target_uniprot_ids:
                 if compound_name in self.compounds and uniprot_id in self.targets:
                     edge_inter_dict[uniprot_id][compound_name].append(pAct)
@@ -577,7 +594,8 @@ class PDADataset(Dataset):
             edges_ppi_features = []
 
             for prot1_geneid, prot2_geneid in dataframe_raw_vectorization_with_numpy(ppi_df, keys=["Prot1", "Prot2"]):
-                # We are using a PPI network referencing gene IDs -> Translate them to UniProt IDs (there can be several proteins!)
+                # We are using a PPI network referencing gene IDs
+                # -> Translate them to UniProt IDs (there can be several proteins!)
                 prot1_ids = mapping_file[mapping_file.GeneID == prot1_geneid].Accession.to_list()
                 prot2_ids = mapping_file[mapping_file.GeneID == prot2_geneid].Accession.to_list()
                 for prot1 in prot1_ids:
@@ -719,7 +737,7 @@ class PDADataset(Dataset):
         try:
             # Retrieve diverse protein classes from UniProt
             self.target_classes.append(retrieve_protein_classes([node_name for node_name in valid_node_names]))
-        except:
+        except Exception:
             pass
 
         target_features = np.empty(
@@ -753,7 +771,6 @@ class PDADataset(Dataset):
             )
         self.data["target"].x = torch.cat((self.data["target"].x, torch.from_numpy(target_features)), dim=0)
         self.data["target"].names = self.data["target"].names + valid_node_names
-        prev_target_set = self.targets
         self.targets = self.targets + valid_node_names
         assert len(self.targets) == len(np.unique(self.targets)), "PDA Dataset: Duplicated targets in dataset"
 
@@ -767,7 +784,8 @@ class PDADataset(Dataset):
                 file=sys.stdout,
                 desc="Updating protein-protein interactions...",
             ):
-                # We are using a PPI network referencing gene IDs -> Translate them to UniProt IDs (there can be several proteins!)
+                # We are using a PPI network referencing gene IDs
+                # -> Translate them to UniProt IDs (there can be several proteins!)
                 prot1_ids = mapping_file[mapping_file.GeneID == prot1_geneid].Accession.to_list()
                 prot2_ids = mapping_file[mapping_file.GeneID == prot2_geneid].Accession.to_list()
                 for prot1 in prot1_ids:
@@ -814,7 +832,7 @@ class PDADataset(Dataset):
                     else:
                         Chem.MolFromSmiles(node_name)
                         valid_node_names.append(node_name)
-                except:
+                except Exception:
                     logging.warning("PDA Dataset: Trying to add invalid SMILES {}".format(node_name))
                     continue
 
@@ -837,7 +855,7 @@ class PDADataset(Dataset):
         for idx, comp in tqdm(enumerate(valid_node_names), file=sys.stdout, desc="Calculate compound features..."):
             try:
                 self.comp2smiles[comp] = comp
-            except:
+            except Exception:
                 pass
 
             compound_features[idx, :] = get_compound_features(
@@ -849,7 +867,6 @@ class PDADataset(Dataset):
                 other_features=self.settings.COMPOUND_FEATURES.extended_chemical_features,
             )
         self.data["compound"].x = torch.cat((self.data["compound"].x, torch.from_numpy(compound_features)), dim=0)
-        prev_compound_set = self.data["compound"].smiles
         self.compounds = self.compounds + valid_node_names
         assert len(self.compounds) == len(np.unique(self.compounds)), "PDA Dataset: Duplicated compounds in dataset"
         self.data["compound"].names = self.data["compound"].names + valid_node_names
@@ -872,7 +889,7 @@ class PDADataset(Dataset):
                             # Use compound similarities on the edges
                             try:
                                 similarity = compounds_similarity(self.comp2smiles[comp1], self.comp2smiles[comp2])
-                            except:
+                            except Exception:
                                 similarity = compounds_similarity(comp1, comp2)
                             if similarity >= similarity_threshold:
                                 edges_drugs_from_to.append([comp1, comp2])
@@ -941,12 +958,13 @@ class PDADataset(Dataset):
             return self.settings.COMPOUND_FEATURES.compound_similarities_threshold
         else:
             logging.warning(
-                "PDA Dataset: Compound similarity threshold is expected to be between 0.0 and 1.0 (set at 0.0 by default)"
+                "PDA Dataset: Compound similarity threshold is expected to be between 0.0 and 1.0 (default 0.0)"
             )
             return 0.0
 
     def transform_graph(self, data):
-        # Make graph undirected - PyTorchGeometric performs the transformation by adding reverse edges (on every heterogeneous relations)
+        # Make graph undirected - PyTorchGeometric performs the transformation by adding reverse edges
+        # (on every heterogeneous relations)
         data = T.ToUndirected()(data)
         # Manually copy labels to reverted edges
         data["target", "compound"].y_edge_index = torch.LongTensor(
@@ -959,7 +977,8 @@ class PDADataset(Dataset):
         return data
 
     def randomize_edges(self, seed=123, random_pAct=True):
-        # Function build to randomize edges and their label, and return a 'random graph' in order to compare learning processes and biological understanding of the model.
+        # Function build to randomize edges and their label, and return a 'random graph' in order to compare learning
+        # processes and biological understanding of the model.
         # Here we are drawing bioactivities values randomly, instead of shuffling the existing ones.
         torch.manual_seed(seed)
 
