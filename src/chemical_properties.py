@@ -1,17 +1,18 @@
+import logging
+
+import numpy as np
 from rdkit import Chem, DataStructs
-from rdkit.Chem.Descriptors import ExactMolWt, TPSA
+from rdkit.Chem.AllChem import GetHashedMorganFingerprint, GetMorganFingerprintAsBitVect
+from rdkit.Chem.Crippen import MolLogP, MolMR
+from rdkit.Chem.Descriptors import TPSA, ExactMolWt
 from rdkit.Chem.rdMolDescriptors import (
-    CalcNumRotatableBonds,
+    CalcNumAliphaticRings,
+    CalcNumAromaticRings,
     CalcNumLipinskiHBA,
     CalcNumLipinskiHBD,
-    CalcNumAromaticRings,
-    CalcNumAliphaticRings,
+    CalcNumRotatableBonds,
 )
-from rdkit.Chem.Crippen import MolLogP, MolMR
-from rdkit.Chem.AllChem import GetMorganFingerprintAsBitVect, GetHashedMorganFingerprint
 from rdkit.Chem.Scaffolds.MurckoScaffold import MakeScaffoldGeneric
-import numpy as np
-import logging
 
 
 def get_smiles_from_mol2(mol2_file):
@@ -21,15 +22,16 @@ def get_smiles_from_mol2(mol2_file):
         # If compound was correctly computed, save the SMILES representation
         smiles = Chem.MolToSmiles(mol, isomericSmiles=True)
         return smiles
-    except:
-        # If it was impossible to build molecule or retrieve SMILES representation due to a wrong sdf/mol2 file, just skip the sample
+    except Exception:
+        # If it was impossible to build molecule or retrieve SMILES representation due to a wrong sdf/mol2 file,
+        # just skip the sample
         logging.error("Impossible to build molecule or retrieve SMILES representation from file {}".format(mol2_file))
         return None
 
 
 """
-For the compounds, check if the SMILES representation from the PACE library is not miscallaneous, otherwise exclude the compound.
-To check miscallaneous representation, we are trying to compute compound features
+For the compounds, check if the SMILES representation from the PACE library is not miscallaneous,
+otherwise exclude the compound. To check miscallaneous representation, we are trying to compute compound features
 """
 
 
@@ -67,16 +69,15 @@ def check_compounds_smiles_from_PACE(pace_res_df, compounds):
             else:
                 excluded_compounds.append(comp)
     logging.warning(
-        "Dataset: The following compounds were excluded from the pipeline as lacking or confusing SMILES representation from the PACE library:\n{}\n".format(
-            excluded_compounds
-        )
+        "Dataset: The following compounds were excluded from the pipeline as lacking or confusing "
+        + "SMILES representation from the PACE library:\n{}\n".format(excluded_compounds)
     )
     return [c for c in compounds if c not in excluded_compounds], updated_comp2smiles
 
 
 """
-For the compounds, check if the SMILES representation from the screening file is not miscallaneous, otherwise exclude the compound.
-To check miscallaneous representation, we are trying to compute compound features
+For the compounds, check if the SMILES representation from the screening file is not miscallaneous,
+otherwise exclude the compound. To check miscallaneous representation, we are trying to compute compound features
 """
 
 
@@ -98,23 +99,23 @@ def check_compounds_smiles(compound2smiles, compounds):
                     updated_comp2smiles[comp] = parent_isotopes[0]
                 else:
                     excluded_compounds.append(comp)
-                    # logging.warning('PDA Dataset: Compound {} has a common parent isotope thus with a misleading SMILES representation (chemical features unable to be extracted with RDKit)!'.format(comp)
+                    # logging.warning('PDA Dataset: Compound {} has a common parent isotope thus with a misleading
+                    # SMILES representation (chemical features unable to be extracted with RDKit)!'.format(comp)
             else:  # Several parent isotopes
                 excluded_compounds.append(comp)
                 logging.warning(
                     "Compound {} has several SMILES representation for several parent isotopes!".format(comp)
                 )
-                # raise ValueError('PDA Dataset: Compound {} have several SMILES representation! {}'.format(comp, comp_smiles))
         else:
             if check_compounds_features(comp_smiles[0]):
                 updated_comp2smiles[comp] = comp_smiles[0]
             else:
                 excluded_compounds.append(comp)
-                # logging.warning('PDA Dataset: Compound {} has a misleading SMILES representation (chemical features unable to be extracted with RDKit)!'.format(comp))
+                # logging.warning('PDA Dataset: Compound {} has a misleading SMILES representation
+                # (chemical features unable to be extracted with RDKit)!'.format(comp))
     logging.warning(
-        "Dataset: The following compounds were excluded from the pipeline as lacking or confusing SMILES representation from the PACE library:\n{}\n".format(
-            excluded_compounds
-        )
+        "Dataset: The following compounds were excluded from the pipeline as lacking or confusing "
+        + "SMILES representation from the PACE library:\n{}\n".format(excluded_compounds)
     )
     return [c for c in compounds if c not in excluded_compounds], updated_comp2smiles
 
@@ -278,7 +279,8 @@ def check_Lipinski_violations(compound_smiles):
 
 
 def get_intersection_smiles(smiles_list1, smiles_list2):
-    # Get the intersection of two lists of SMILES - here we carefully check SMILES one by one to avoid similar molecules with different SMILES to be considered as different
+    # Get the intersection of two lists of SMILES - here we carefully check SMILES one by one to avoid
+    # similar molecules with different SMILES to be considered as different
     # /!\ Slow method, use it only to be sure that the intersection is correct
     intersection_smiles = []
     for smiles1 in smiles_list1:
@@ -287,13 +289,14 @@ def get_intersection_smiles(smiles_list1, smiles_list2):
                 if compare_compounds(smiles1, smiles2):
                     intersection_smiles.append(smiles1)
                     break
-            except:
+            except Exception:
                 continue
     return intersection_smiles
 
 
 def get_union_smiles(smiles_list1, smiles_list2):
-    # Get the union of two lists of SMILES - here we carefully check SMILES one by one to avoid similar molecules with different SMILES to be added twice
+    # Get the union of two lists of SMILES - here we carefully check SMILES one by one to avoid
+    # similar molecules with different SMILES to be added twice
     # /!\ Slow method, use it only to be sure that the union is correct
     union_smiles = []
     idx_list1 = []
@@ -304,7 +307,7 @@ def get_union_smiles(smiles_list1, smiles_list2):
                 if compare_compounds(smiles, registered_smiles):
                     found = True
                     break
-            except:
+            except Exception:
                 continue
         if not found:
             try:
@@ -312,7 +315,7 @@ def get_union_smiles(smiles_list1, smiles_list2):
                 _ = Chem.MolFromSmiles(smiles)
                 union_smiles.append(smiles)
                 idx_list1.append(idx)
-            except:
+            except Exception:
                 continue
 
     idx_list2 = []
@@ -323,7 +326,7 @@ def get_union_smiles(smiles_list1, smiles_list2):
                 if compare_compounds(smiles, registered_smiles):
                     found = True
                     break
-            except:
+            except Exception:
                 continue
         if not found:
             try:
@@ -331,18 +334,19 @@ def get_union_smiles(smiles_list1, smiles_list2):
                 _ = Chem.MolFromSmiles(smiles)
                 union_smiles.append(smiles)
                 idx_list2.append(idx)
-            except:
+            except Exception:
                 continue
     return union_smiles, (idx_list1, idx_list2)
 
 
 def find_smiles_index(smiles, smiles_list):
-    # Find the index of a SMILES in a list of SMILES - here we carefully check SMILES one by one to avoid similar molecules with different SMILES to be considered as different
+    # Find the index of a SMILES in a list of SMILES - here we carefully check SMILES one by one to avoid
+    # similar molecules with different SMILES to be considered as different
     # /!\ Slow method, use it only to be sure that the index is correct
     for idx, smiles_in_list in enumerate(smiles_list):
         try:
             if compare_compounds(smiles, smiles_in_list):
                 return idx
-        except:
+        except Exception:
             continue
     return None

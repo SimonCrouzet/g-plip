@@ -1,21 +1,21 @@
-from datetime import datetime
-import json as json
+import argparse
+import copy
 import logging
-import numpy as np
+import os
+import sys
+from datetime import datetime
+
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
-import os, sys, argparse
-
-import torch.utils.data
-
 import torch
-from src.config import ConfigFile
-
-from src.model import *
-from src.data import *
-from src.pdbbind_dataset import construct_pdbbind_data, construct_pdbbind_core_data
-
+import torch.utils.data
 from torch.utils.tensorboard import SummaryWriter
+
+from src.config import ConfigFile
+from src.data import GraphBatchIterator
+from src.model import Model
+from src.pdbbind_dataset import construct_pdbbind_core_data, construct_pdbbind_data
 
 
 def parse_params(config_file=None):
@@ -33,7 +33,7 @@ def parse_params(config_file=None):
             return ConfigFile(config["config"])
         else:
             return ConfigFile(config_file)
-    except:
+    except Exception:
         raise ImportError("Usage: pdbbind_pipeline.py [-c path_to_config.ini]")
 
 
@@ -44,6 +44,8 @@ def load_config(params, data_log=None, run_name=None):
         params.base_name = params.RUNINFO.run_name
     else:
         params.base_name = "default"
+
+    os.makedirs("outputs", exist_ok=True)
 
     if not data_log:
         logging.basicConfig(filename=os.path.join("outputs", "data_" + params.base_name + ".log"), level=logging.DEBUG)
@@ -66,11 +68,10 @@ def load_config(params, data_log=None, run_name=None):
     return output_f, tensorboard
 
 
-def init_model(params, data, dataset):
+def init_model(params, metadata):
     model = Model(
         hidden_channels=params.MODELINFO.hidden_channels,
-        data=data,
-        metadata=dataset.get_metadata(use_dtis=params.MODELINFO.use_dtis),
+        metadata=metadata,
         encoder=params.MODELINFO.encoder_type,
         link_type=params.MODELINFO.link_prediction_mode,
         loss_function=params.RUNPARAMS.loss_function,
@@ -80,6 +81,10 @@ def init_model(params, data, dataset):
         with_linears=params.MODELINFO.conv_with_linears,
         use_dropout=params.MODELINFO.use_edge_decoder_dropout,
     )
+    # print number of parameters for model
+    params = filter(lambda p: p.requires_grad, model.parameters())
+    params = sum([np.prod(e.size()) for e in params])
+    print(f"Number of model parameters:model {params:d}")
 
     # model_fp16 = torch.quantization.quantize_dynamic(
     # 	model,  # the original model
@@ -168,7 +173,8 @@ def run_pipeline(params, data, model, output_f, tensorboard):
             best_iter = (epoch + 1, test_pred, rmse_value, rbo_value, pearson_coeff, r2_score, copy.deepcopy(model))
         all_losses[epoch] = [train_rmse, rmse_value, rbo_value, pearson_coeff, r2_score]
         print(
-            f"Epoch: {epoch+1:03d}, Train RMSE: {train_rmse:.4f}, Test RMSE: {rmse_value:.4f}, RBO: {rbo_value:.4f}, Pearson Coeff (Rp): {pearson_coeff:.4f}, R2: {r2_score:.4f}",
+            f"Epoch: {epoch+1:03d}, Train RMSE: {train_rmse:.4f}, Test RMSE: {rmse_value:.4f}, RBO: {rbo_value:.4f},"
+            + "Pearson Coeff (Rp): {pearson_coeff:.4f}, R2: {r2_score:.4f}",
             file=output_f,
         )
 
@@ -189,17 +195,20 @@ def run_pipeline(params, data, model, output_f, tensorboard):
     preds = best_iter[1].flatten()
     targets = model.ground_truth(data, mode="test").float().flatten()
     print(
-        f"Mean absolute difference between targets and predictions at the end: ",
+        "Mean absolute difference between targets and predictions at the end: ",
         (targets - preds).abs().mean().item(),
         file=output_f,
     )
 
     print(
-        f"Performances at best: Epoch {best_iter[0]:d} - Test RMSE = {best_iter[2]:.4f}, RBO = {best_iter[3]:.4f}, Pearson Coeff (Rp) = {best_iter[4]:.4f}, R² = {best_iter[5]:.4f}",
+        f"Performances at best: Epoch {best_iter[0]:d} - Test RMSE = {best_iter[2]:.4f}, RBO = {best_iter[3]:.4f},"
+        + "Pearson Coeff (Rp) = {best_iter[4]:.4f}, R² = {best_iter[5]:.4f}",
         file=output_f,
     )
     print(
-        f"Performances at best val: Epoch {val_best_iter[0]:d} (Val RMSE = {val_best_iter[2]:.4f}) - Test RMSE = {val_best_iter[3]:.4f}, RBO = {val_best_iter[4]:.4f}, Pearson Coeff (Rp) = {val_best_iter[5]:.4f}, R² = {val_best_iter[6]:.4f}",
+        f"Performances at best val: Epoch {val_best_iter[0]:d} (Val RMSE = {val_best_iter[2]:.4f}) "
+        + f"- Test RMSE = {val_best_iter[3]:.4f}, RBO = {val_best_iter[4]:.4f}, "
+        + f"Pearson Coeff (Rp) = {val_best_iter[5]:.4f}, R² = {val_best_iter[6]:.4f}",
         file=output_f,
     )
 
@@ -209,7 +218,7 @@ def run_pipeline(params, data, model, output_f, tensorboard):
     return model, best_iter, all_losses
 
 
-def plot_results(params, model, dataset, data, best_iter, all_losses, output_f):
+def plot_results(params, model, data, best_iter, all_losses, output_f):
     preds = best_iter[1].flatten()
     targets = model.ground_truth(data, mode="test").float().flatten()
 
@@ -238,7 +247,6 @@ def plot_results(params, model, dataset, data, best_iter, all_losses, output_f):
     # Plot loss and metrics curve
     fig, ax1 = plt.subplots()
     ax2 = ax1.twinx()
-    ax3 = ax1.twinx()
 
     ax1.plot(np.arange(params.RUNPARAMS.epochs), all_losses[:, 0], "b-", label="Train RMSE Loss")
     ax1.plot(np.arange(params.RUNPARAMS.epochs), all_losses[:, 1], "r-", label="Test RMSE Loss")
@@ -259,6 +267,7 @@ def plot_results(params, model, dataset, data, best_iter, all_losses, output_f):
 
     np.savetxt(os.path.join("outputs", "losses_" + params.base_name + ".csv"), all_losses, delimiter=",")
     plt.savefig(os.path.join("outputs", "learning-curve_" + params.base_name + ".png"))
+    plt.close(fig)
 
 
 if __name__ == "__main__":
@@ -292,6 +301,6 @@ if __name__ == "__main__":
     else:
         data, dataset = construct_pdbbind_data(params, output_f, pdbbind_set)
 
-    model = init_model(params, data, dataset)
+    model = init_model(params, dataset.get_metadata(use_dtis=params.MODELINFO.use_dtis))
     model, best_iter, all_losses = run_pipeline(params, data, model, output_f, tensorboard)
-    plot_results(params, model, dataset, data, best_iter, all_losses, output_f)
+    plot_results(params, model, data, best_iter, all_losses, output_f)

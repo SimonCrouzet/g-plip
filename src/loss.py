@@ -1,5 +1,5 @@
-import torch
 import rbo
+import torch
 
 
 # Weighted Mean Square Error
@@ -37,8 +37,8 @@ def pearson_correlation_coefficient(pred, target):
 
 
 """
-Custom penalization - according to a certain threshold, prediction above is considered as "of high interest", and we penalize 
-predictions below when the ground truth is above to make our model relunctant to predict false negative
+Custom penalization - according to a certain threshold, prediction above is considered as "of high interest", and we
+penalize predictions below when the ground truth is above to make our model relunctant to predict false negative
 """
 
 
@@ -61,7 +61,8 @@ class RBOLoss(torch.nn.Module):
         self.reduction = reduction
         super(RBOLoss, self).__init__()
 
-    # We expect to have, for each node, two array `prediction` and `target` of the same shape containing respectively the predicted output and the ground truth for each of the edges coming out of this node
+    # We expect to have, for each node, two array `prediction` and `target` of the same shape containing respectively
+    # the predicted output and the ground truth for each of the edges coming out of this node
     def calculate_rbo(self, prediction, target):
         # Rank GT and Predictions
         gt_ranking = torch.argsort(target, descending=True, dim=0).flatten()

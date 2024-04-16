@@ -1,7 +1,9 @@
+import json
+import os
 import subprocess
+
 import numpy as np
 import torch
-import json, os
 
 
 def get_sample_weights(target, class_weight):
@@ -37,5 +39,5 @@ def submit_to_lsf(job_name, config_file):
     out_f.write(f.read() + config_file)
     out_f.close()
     subprocess.check_output("ml Anaconda3; conda activate pda_network", shell=True)
-    out = subprocess.check_output("bsub < temp.bsub", shell=True)
+    _ = subprocess.check_output("bsub < temp.bsub", shell=True)
     os.remove("temp.bsub")
