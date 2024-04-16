@@ -1,16 +1,18 @@
-from configparser import ConfigParser
 from collections import namedtuple
+from configparser import ConfigParser
+
 import numpy as np
 
 
-# From parsing, return input with the correct type (e.g. boolean True from string 'True' or float 1.32 from string '1.32')
+# From parsing, return input with the correct type (e.g. boolean True from string 'True'
+# or float 1.32 from string '1.32')
 def evaluate_input_type(input):
     if np.isin(input, ["all", "max", "min"]):  # Case when the name is a built-in function
         return input
 
     try:
         return eval(input)
-    except:
+    except Exception:
         if "," in input:
             return [s.strip() for s in str(input).split(",")]
         else:

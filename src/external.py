@@ -1,11 +1,14 @@
+import json
 import logging
-import requests, os, json, subprocess, time
+import os
+import subprocess
+import time
+
 import pandas as pd
-
-from src.utils import dump_to_json
-
 import requests
 from requests.adapters import HTTPAdapter, Retry
+
+from src.utils import dump_to_json
 
 # Default settings to have correct requests to external servors (no DDOS)
 POLLING_INTERVAL = 5
@@ -52,9 +55,8 @@ sublocations_dict = [
 
 # Retrieve sublocations from UniProt query
 def request_sublocation_from_uniprot(uniprot_id):
-    url = "https://rest.uniprot.org/uniprotkb/search?query=accession:{}+AND+organism_id:9606&format=tsv&fields=cc_subcellular_location".format(
-        uniprot_id
-    )
+    url = f"https://rest.uniprot.org/uniprotkb/search?query=accession:{uniprot_id}"
+    +"+AND+organism_id:9606&format=tsv&fields=cc_subcellular_location"
     df = pd.read_csv(url, delimiter="\t")
     if len(df) == 0:
         logging.warning("UniProt: Cellular location of UniProtID {} has not been found.".format(uniprot_id))
@@ -87,12 +89,8 @@ def get_sublocation_features_length():
 def GeneID_to_UniProtID(gene_ids, return_list=False):
     # Retrieve UniProtID from GeneID
     result = subprocess.check_output(
-        "curl --form 'from=GeneID' \
-							--form 'to=UniProtKB' \
-							--form 'ids={}' \
-							https://rest.uniprot.org/idmapping/run".format(
-            gene_ids
-        ),
+        f"curl --form 'from=GeneID' --form 'to=UniProtKB' --form 'ids={gene_ids}' "
+        + "https://rest.uniprot.org/idmapping/run",
         shell=True,
     )
     job_id = json.loads(result)["jobId"]
@@ -114,12 +112,8 @@ def GeneID_to_UniProtID(gene_ids, return_list=False):
 def UniProtID_to_GeneID(uniprot_ids, return_list=False):
     # Retrieve GeneID from UniProtID - CURRENTLY NOT FUNCTIONAL (UniProt Issues)
     result = subprocess.check_output(
-        "curl --form 'from=UniProtKB_AC' \
-							--form 'to=GeneID' \
-							--form 'ids={}' \
-							https://rest.uniprot.org/idmapping/run".format(
-            ",".join(uniprot_ids)
-        ),
+        "curl --form 'from=UniProtKB_AC' --form 'to=GeneID' "
+        + "--form 'ids={}' https://rest.uniprot.org/idmapping/run".format(",".join(uniprot_ids)),
         shell=True,
     )
     job_id = json.loads(result)["jobId"]
@@ -173,9 +167,8 @@ def exclude_nonhuman_proteins(proteins, json_path=None):
         human_proteins = []
         for protein in proteins:
             try:
-                url = "https://rest.uniprot.org/uniprotkb/search?query=accession:{}&format=tsv&fields=organism_id".format(
-                    protein
-                )
+                url = "https://rest.uniprot.org/uniprotkb/search?query=accession:"
+                +"{}&format=tsv&fields=organism_id".format(protein)
                 df = pd.read_csv(url, delimiter="\t")
                 if len(df) == 0:
                     logging.warning(
@@ -188,7 +181,7 @@ def exclude_nonhuman_proteins(proteins, json_path=None):
                 else:
                     if df["Organism (ID)"].iloc[0] == 9606:  # Protein is human
                         human_proteins.append(protein)
-            except:
+            except Exception:
                 logging.warning("UniProt: UniProtID {} is invalid!".format(protein))
                 continue
 
@@ -202,8 +195,9 @@ def download_uniprot_fasta(proteins, data_folder):
     print("Downloading FASTA files from UniProt...")
     for uniprot_id in proteins:
         if not os.path.isfile(os.path.join(data_folder, "fasta", uniprot_id + ".fasta")):
-            url = "https://rest.uniprot.org/uniprotkb/search?query={}+AND+organism_id:9606&format=fasta&compressed=false".format(
-                uniprot_id
+            url = (
+                "https://rest.uniprot.org/uniprotkb/search?query="
+                + "{}+AND+organism_id:9606&format=fasta&compressed=false".format(uniprot_id)
             )
             fasta = requests.get(url).text
 
@@ -219,10 +213,7 @@ def download_uniprot_fasta(proteins, data_folder):
 def PDBCode_to_UniProtID(pdbcodes, return_list=False):
     # Retrieve UniProtID from PDB Code
     result = subprocess.check_output(
-        "curl --form 'from=PDB' \
-							--form 'to=UniProtKB' \
-							--form 'ids={}' \
-							https://rest.uniprot.org/idmapping/run".format(
+        "curl --form 'from=PDB' --form 'to=UniProtKB' --form 'ids={}' https://rest.uniprot.org/idmapping/run".format(
             ",".join(pdbcodes)
         ),
         shell=True,
@@ -258,8 +249,9 @@ def retrieve_protein_classes(proteins):
     }
     protein_class_df = pd.DataFrame(columns=keyword_categories, index=proteins)
     for protein in proteins:
-        url = "https://rest.uniprot.org/uniprotkb/search?query=accession:{}+AND+organism_id:9606&format=tsv&fields=keyword".format(
-            protein
+        url = (
+            "https://rest.uniprot.org/uniprotkb/search?query=accession:"
+            + "{}+AND+organism_id:9606&format=tsv&fields=keyword".format(protein)
         )
         df = pd.read_csv(url, delimiter="\t")
         keywords_protein_list = df.Keywords.loc[0].split(";")
