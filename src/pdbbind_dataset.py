@@ -174,7 +174,7 @@ class PDBBindDataset(PDADataset):
 
         download_uniprot_fasta(self.targets, self.data_folder)
 
-        self.pdbbind_all_index = pdbbind_all_index
+        self.pdbbind_all_index = pdbbind_all_index.reset_index(drop=True)
 
         return pdbbind_all_index, ppi_df, gene_expr_df, mapping_file, smiles_to_equivalent
 
@@ -598,6 +598,11 @@ def casf_core_split(
         target_node_names=[x[0] for x in target_ligand_pair],
         edge_labels=target_ligand_labels,
     )
+
+    core_all_index = pd.DataFrame(target_ligand_pair, columns=['UniProt ID', 'SMILES', 'PDB code'])
+    core_all_index['-logKd/Ki'] = target_ligand_labels
+    core_all_index['release year'] = np.nan
+    dataset.pdbbind_all_index = pd.concat([dataset.pdbbind_all_index, core_all_index], ignore_index=True).reset_index(drop=True)
 
     existing_edges = [(t.item(), l.item()) for t, l in dataset.data["target", "compound"].y_edge_index.T]
     casf_edges = [

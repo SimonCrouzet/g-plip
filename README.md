@@ -43,7 +43,7 @@ We provide the prebuild graph from the PDBBind data using the default settings i
 N.B.: Note you still need the raw data - G-PLIP is performing a file check first.
 
 ## 3. Graph building
-With the raw data correctly imported, you can proceed to the graph building with `python -m scripts.construct_pdbbind.py`.
+With the raw data correctly imported, you can proceed to the graph building with `python -m scripts.construct_pdbbind`.
 
 
 ## 4. Model training

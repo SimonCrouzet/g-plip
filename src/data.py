@@ -34,6 +34,8 @@ from src.external import download_uniprot_fasta, retrieve_protein_classes
 from src.utils import dataframe_raw_vectorization_with_numpy
 
 # basic logging config
+if not os.path.isdir("outputs"):
+    os.makedirs("outputs")
 logging.basicConfig(filename="outputs/data.log", level=logging.DEBUG)
 
 """

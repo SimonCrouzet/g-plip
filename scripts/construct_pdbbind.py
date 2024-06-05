@@ -1,7 +1,6 @@
 import argparse
 
-from scripts.pda_pipeline import load_config, parse_params
-from scripts.pdbbind_pipeline import construct_pdbbind_core_data, construct_pdbbind_data
+from scripts.pdbbind_pipeline import construct_pdbbind_core_data, construct_pdbbind_data, load_config, parse_params
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
